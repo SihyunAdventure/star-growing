@@ -1,0 +1,27 @@
+{
+  "name": "star-growing",
+  "version": "0.1.0",
+  "description": "별 키우기 - 머지+방치형 우주 성장 시뮬레이션 (앱인토스)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "merge",
+    "idle",
+    "apps-in-toss"
+  ],
+  "license": "ISC",
+  "devDependencies": {
+    "@types/howler": "^2.2.12",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "gsap": "^3.14.2",
+    "pixi.js": "^8.16.0"
+  }
+}
