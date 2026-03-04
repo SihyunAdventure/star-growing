@@ -6,23 +6,23 @@ import { getItemDef } from '../data/items';
 import { Panel } from '../ui/Panel';
 import { createItemIcon } from '../ui/ItemRenderer';
 
-const SLOT_COUNT = 3;
 const SLOT_SIZE = 70;
 const SLOT_GAP = 12;
 
 export class WaitingSlots {
   container: Container;
   width: number;
-  private slots: (string | null)[] = [null, null, null];
+  private slots: (string | null)[];
   private slotContainers: Container[] = [];
   private slotBackgrounds: Graphics[] = [];
   private pulseTweens: (gsap.core.Tween | null)[] = [];
   private board: Board;
 
-  constructor(_gameState: GameState, board: Board) {
+  constructor(_gameState: GameState, board: Board, slotCount = 3) {
     this.board = board;
+    this.slots = new Array(slotCount).fill(null);
     this.container = new Container();
-    this.width = SLOT_COUNT * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP;
+    this.width = this.slots.length * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP;
     this.drawSlots();
   }
 
@@ -47,7 +47,7 @@ export class WaitingSlots {
     label.y = -6;
     this.container.addChild(label);
 
-    for (let i = 0; i < SLOT_COUNT; i++) {
+    for (let i = 0; i < this.slots.length; i++) {
       const x = i * (SLOT_SIZE + SLOT_GAP);
 
       const bg = new Graphics();
@@ -85,6 +85,38 @@ export class WaitingSlots {
 
   isEmpty(): boolean {
     return this.slots.every(s => s === null);
+  }
+
+  getSlots(): (string | null)[] {
+    return this.slots;
+  }
+
+  clearSlotAt(index: number): void {
+    this.slots[index] = null;
+    this.clearSlot(index);
+  }
+
+  expandSlots(newCount: number): void {
+    while (this.slots.length < newCount) {
+      this.slots.push(null);
+    }
+    // Kill active tweens before rebuilding
+    for (const t of this.pulseTweens) { t?.kill(); }
+    // Rebuild UI
+    while (this.container.children.length > 0) {
+      this.container.removeChildAt(0);
+    }
+    this.slotContainers = [];
+    this.slotBackgrounds = [];
+    this.pulseTweens = [];
+    this.width = this.slots.length * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP;
+    this.drawSlots();
+    // Re-render existing items
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.slots[i]) {
+        this.renderSlot(i);
+      }
+    }
   }
 
   private moveToBoard(slotIndex: number): void {

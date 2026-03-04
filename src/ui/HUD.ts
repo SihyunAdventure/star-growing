@@ -2,10 +2,10 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import gsap from 'gsap';
 import { GameState, DiscoveredRecipe } from '../game/GameState';
 import { getItemDef } from '../data/items';
+import { getEpisodeDef } from '../data/episodes';
 import { Panel } from './Panel';
 import { RECIPES } from '../data/combinations';
-
-const GAME_WIDTH = 390;
+import { GAME_WIDTH } from '../config/constants';
 
 interface ResourcePill {
   container: Container;
@@ -24,6 +24,11 @@ export class HUD {
   private recipeCards: Container[] = [];
   private recipeEntries: DiscoveredRecipe[] = [];
   private recipeCountLabel: Text;
+  private episodeLabel: Text;
+  private shopButton: Container;
+
+  // Callbacks
+  onShopOpen?: () => void;
 
   constructor(gameState: GameState) {
     this.gameState = gameState;
@@ -42,20 +47,53 @@ export class HUD {
     borderLine.fill({ color: 0x2a2a8e, alpha: 0.5 });
     this.container.addChild(borderLine);
 
-    // Title
+    // Title + Episode label row
     const title = new Text({
       text: '⭐ 별 키우기',
-      style: new TextStyle({ fontSize: 20, fill: 0xffffff, fontWeight: 'bold' }),
+      style: new TextStyle({ fontSize: 16, fill: 0xffffff, fontWeight: 'bold' }),
     });
     title.x = 15;
-    title.y = 8;
+    title.y = 4;
     this.container.addChild(title);
 
-    // Resource pills
-    this.stardustPill = this.createPill(12, 38, 0xFFD700, '✦ 0');
-    this.cosmicPill = this.createPill(108, 38, 0xBB86FC, '🔮 0');
-    this.discoveryPill = this.createPill(204, 38, 0x80CBC4, '📖 2/48');
-    this.productionPill = this.createPill(305, 38, 0xFFAB40, '⚡ 0/초');
+    // Episode label (next to title)
+    this.episodeLabel = new Text({
+      text: 'Ep.1 빅뱅',
+      style: new TextStyle({ fontSize: 11, fill: 0xFFD740 }),
+    });
+    this.episodeLabel.x = 15;
+    this.episodeLabel.y = 22;
+    this.container.addChild(this.episodeLabel);
+
+    // Shop button (top-right)
+    this.shopButton = new Container();
+    this.shopButton.x = GAME_WIDTH - 42;
+    this.shopButton.y = 6;
+
+    const shopBg = new Graphics();
+    shopBg.roundRect(0, 0, 32, 28, 8);
+    shopBg.fill({ color: 0x1a1a5e, alpha: 0.8 });
+    shopBg.stroke({ color: 0x4488ff, width: 1, alpha: 0.5 });
+    this.shopButton.addChild(shopBg);
+
+    // Gear icon (simple procedural)
+    const gear = new Graphics();
+    gear.circle(16, 14, 6);
+    gear.stroke({ color: 0x4488ff, width: 2, alpha: 0.9 });
+    gear.circle(16, 14, 2);
+    gear.fill({ color: 0x4488ff, alpha: 0.9 });
+    this.shopButton.addChild(gear);
+
+    shopBg.eventMode = 'static';
+    shopBg.cursor = 'pointer';
+    shopBg.on('pointertap', () => this.onShopOpen?.());
+    this.container.addChild(this.shopButton);
+
+    // Resource pills (repositioned)
+    this.stardustPill = this.createPill(12, 40, 0xFFD700, '✦ 0');
+    this.cosmicPill = this.createPill(108, 40, 0xBB86FC, '🔮 0');
+    this.discoveryPill = this.createPill(204, 40, 0x80CBC4, '📖 2/48');
+    this.productionPill = this.createPill(300, 40, 0xFFAB40, '⚡ 0/초');
 
     // Recipe section
     const recipePanel = new Panel({
@@ -224,11 +262,29 @@ export class HUD {
     });
   }
 
+  /** Show episode completion banner */
+  showEpisodeComplete(episodeNum: number): void {
+    const def = getEpisodeDef(episodeNum);
+    if (!def) return;
+    this.showNotification('🎉', `${def.name} 완료!`);
+  }
+
   update(): void {
     this.stardustPill.valueText.text = `✦ ${Math.floor(this.gameState.stardust)}`;
     this.cosmicPill.valueText.text = `🔮 ${this.gameState.cosmicEnergy}`;
-    this.discoveryPill.valueText.text = `📖 ${this.gameState.discoveredItems.size}/48`;
+
+    // Episode-specific discovery count
+    const ep = this.gameState.episodes.currentEpisode;
+    const progress = this.gameState.episodes.getProgress(this.gameState.discoveredItems);
+    this.discoveryPill.valueText.text = `📖 ${progress.current}/${progress.total}`;
+
     const prod = this.gameState.getProductionPerSecond();
     this.productionPill.valueText.text = `⚡ ${prod.toFixed(1)}/초`;
+
+    // Update episode label
+    const def = getEpisodeDef(ep);
+    if (def) {
+      this.episodeLabel.text = `Ep.${ep} ${def.name}`;
+    }
   }
 }

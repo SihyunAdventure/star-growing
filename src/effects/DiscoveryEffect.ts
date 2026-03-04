@@ -3,9 +3,7 @@ import gsap from 'gsap';
 import { getItemDef } from '../data/items';
 import { hexToRgba } from '../ui/Panel';
 import { createItemIcon } from '../ui/ItemRenderer';
-
-const GAME_WIDTH = 390;
-const GAME_HEIGHT = 844;
+import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 
 export class DiscoveryEffect {
   static show(parent: Container, itemId: string): void {
