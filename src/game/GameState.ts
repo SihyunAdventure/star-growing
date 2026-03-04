@@ -1,4 +1,7 @@
 import { getItemDef, getTierMultiplier } from '../data/items';
+import { EpisodeProgress } from './EpisodeProgress';
+import { UpgradeSystem } from './UpgradeSystem';
+import { Recipe } from '../data/combinations';
 
 export interface DiscoveredRecipe {
   inputs: string[];
@@ -10,8 +13,12 @@ export class GameState {
   stardust = 0;
   cosmicEnergy = 0;
   discoveredItems: Set<string> = new Set();
-  boardItems: (string | null)[] = new Array(16).fill(null); // 4x4
+  boardItems: (string | null)[];
   totalMerges = 0;
+
+  // Composition
+  episodes = new EpisodeProgress();
+  upgrades = new UpgradeSystem();
 
   // Recipe tracking
   discoveredRecipes: DiscoveredRecipe[] = [];
@@ -23,6 +30,7 @@ export class GameState {
   onStardustChange?: () => void;
 
   constructor() {
+    this.boardItems = new Array(this.upgrades.getBoardSize() ** 2).fill(null);
     this.discoveredItems.add('dust');
     this.discoveredItems.add('energy');
   }
@@ -49,7 +57,7 @@ export class GameState {
   }
 
   placeOnBoard(slotIndex: number, itemId: string): boolean {
-    if (slotIndex < 0 || slotIndex >= 16) return false;
+    if (slotIndex < 0 || slotIndex >= this.boardItems.length) return false;
     if (this.boardItems[slotIndex] !== null) return false;
     this.boardItems[slotIndex] = itemId;
     return true;
@@ -92,5 +100,47 @@ export class GameState {
       total += def.productionRate * getTierMultiplier(def.tier);
     }
     return total;
+  }
+
+  findRecipe(a: string, b: string): Recipe | undefined {
+    return this.episodes.findRecipe(a, b);
+  }
+
+  resizeBoard(newSize: number): void {
+    const oldSize = Math.round(Math.sqrt(this.boardItems.length));
+    const newBoard: (string | null)[] = new Array(newSize * newSize).fill(null);
+    for (let i = 0; i < this.boardItems.length; i++) {
+      const item = this.boardItems[i];
+      if (!item) continue;
+      const row = Math.floor(i / oldSize);
+      const col = i % oldSize;
+      if (row < newSize && col < newSize) {
+        const newIndex = row * newSize + col;
+        newBoard[newIndex] = item;
+      }
+    }
+    this.boardItems = newBoard;
+  }
+
+  purchaseUpgrade(upgradeId: string): boolean {
+    const result = this.upgrades.purchase(upgradeId, this.stardust, this.cosmicEnergy);
+    if (!result) return false;
+    if (result.currency === 'stardust') {
+      this.stardust -= result.cost;
+    } else {
+      this.cosmicEnergy -= result.cost;
+    }
+    this.onStardustChange?.();
+    return true;
+  }
+
+  unlockEpisode(episode: number): boolean {
+    const cost = this.episodes.getUnlockCost(episode);
+    if (cost < 0 || this.cosmicEnergy < cost) return false;
+    const success = this.episodes.unlockEpisode(episode);
+    if (success) {
+      this.cosmicEnergy -= cost;
+    }
+    return success;
   }
 }
