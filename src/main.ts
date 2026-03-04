@@ -24,7 +24,6 @@ async function main() {
   const container = document.getElementById('game-container')!;
   container.appendChild(app.canvas as HTMLCanvasElement);
 
-  // Responsive scaling
   function resize() {
     const scale = Math.min(
       window.innerWidth / GAME_WIDTH,
@@ -37,10 +36,9 @@ async function main() {
   window.addEventListener('resize', resize);
   resize();
 
-  // Game state
   const gameState = new GameState();
 
-  // Layer structure: bg → stars → game → effects → UI
+  // Layer structure
   const bgLayer = new Container();
   const starLayer = new Container();
   const gameLayer = new Container();
@@ -51,9 +49,7 @@ async function main() {
   // Background gradient
   const bgGrad = new Graphics();
   const gradient = new FillGradient({
-    type: 'linear',
-    start: { x: 0.5, y: 0 },
-    end: { x: 0.5, y: 1 },
+    type: 'linear', start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 },
     colorStops: [
       { offset: 0, color: '#02020F' },
       { offset: 0.6, color: '#050518' },
@@ -68,13 +64,13 @@ async function main() {
   const starfield = new Starfield(GAME_WIDTH, GAME_HEIGHT);
   starLayer.addChild(starfield.container);
 
-  // Board (4x4)
+  // Board
   const board = new Board(gameState);
   board.container.x = (GAME_WIDTH - board.width) / 2;
   board.container.y = 180;
   gameLayer.addChild(board.container);
 
-  // Waiting slots (3 slots below board)
+  // Waiting slots
   const waitingSlots = new WaitingSlots(gameState, board);
   waitingSlots.container.x = (GAME_WIDTH - waitingSlots.width) / 2;
   waitingSlots.container.y = board.container.y + board.height + 30;
@@ -85,19 +81,20 @@ async function main() {
 
   // HUD
   const hud = new HUD(gameState);
-  hud.container.x = 0;
-  hud.container.y = 0;
   uiLayer.addChild(hud.container);
 
-  // Discovery event → show celebration overlay
+  // Events
   gameState.onDiscovery = (itemId) => {
-    hud.onNewDiscovery(itemId);
+    hud.showDiscoveryNotification(itemId);
     DiscoveryEffect.show(effectLayer, itemId);
+  };
+  gameState.onRecipeDiscovered = (recipe) => {
+    hud.addRecipeCard(recipe);
   };
 
   // Game loop
   app.ticker.add((ticker) => {
-    const dt = ticker.deltaTime / 60; // seconds
+    const dt = ticker.deltaTime / 60;
     starfield.update(dt);
     autoGenerator.update(dt);
     gameState.updateProduction(dt);

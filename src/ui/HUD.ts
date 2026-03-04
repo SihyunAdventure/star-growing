@@ -1,8 +1,9 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import gsap from 'gsap';
-import { GameState } from '../game/GameState';
+import { GameState, DiscoveredRecipe } from '../game/GameState';
 import { getItemDef } from '../data/items';
 import { Panel } from './Panel';
+import { RECIPES } from '../data/combinations';
 
 const GAME_WIDTH = 390;
 
@@ -19,29 +20,23 @@ export class HUD {
   private productionPill: ResourcePill;
   private gameState: GameState;
   private notifContainer: Container;
-  private discoveryLog: Text;
-  private recentDiscoveries: string[] = [];
+  private recipeContainer: Container;
+  private recipeCards: Container[] = [];
+  private recipeEntries: DiscoveredRecipe[] = [];
+  private recipeCountLabel: Text;
 
   constructor(gameState: GameState) {
     this.gameState = gameState;
     this.container = new Container();
 
-    // Header panel (glassmorphism)
+    // Header panel
     const header = new Panel({
-      width: GAME_WIDTH,
-      height: 65,
-      radius: 0,
-      gradient: true,
-      gradientFrom: 0x0d0d40,
-      gradientTo: 0x08082a,
-      fillAlpha: 0.92,
-      strokeColor: 0x2a2a6e,
-      strokeWidth: 0,
-      strokeAlpha: 0,
+      width: GAME_WIDTH, height: 65, radius: 0,
+      gradient: true, gradientFrom: 0x0d0d40, gradientTo: 0x08082a,
+      fillAlpha: 0.92, strokeWidth: 0, strokeAlpha: 0,
     });
     this.container.addChild(header);
 
-    // Bottom border glow
     const borderLine = new Graphics();
     borderLine.rect(0, 64, GAME_WIDTH, 1);
     borderLine.fill({ color: 0x2a2a8e, alpha: 0.5 });
@@ -62,35 +57,28 @@ export class HUD {
     this.discoveryPill = this.createPill(204, 38, 0x80CBC4, '📖 2/48');
     this.productionPill = this.createPill(305, 38, 0xFFAB40, '⚡ 0/초');
 
-    // Discovery notification area
-    const notifPanel = new Panel({
-      width: GAME_WIDTH,
-      height: 105,
-      radius: 0,
-      fillColor: 0x08082a,
-      fillAlpha: 0.5,
-      strokeWidth: 0,
-      strokeAlpha: 0,
+    // Recipe section
+    const recipePanel = new Panel({
+      width: GAME_WIDTH, height: 105, radius: 0,
+      fillColor: 0x08082a, fillAlpha: 0.5, strokeWidth: 0, strokeAlpha: 0,
     });
-    notifPanel.y = 65;
-    this.container.addChild(notifPanel);
+    recipePanel.y = 65;
+    this.container.addChild(recipePanel);
 
-    // Discovery log
-    const logLabel = new Text({
-      text: '최근 발견:',
+    // Recipe section header
+    this.recipeCountLabel = new Text({
+      text: `발견 레시피 (0/${RECIPES.length})`,
       style: new TextStyle({ fontSize: 12, fill: 0x888899 }),
     });
-    logLabel.x = 15;
-    logLabel.y = 73;
-    this.container.addChild(logLabel);
+    this.recipeCountLabel.x = 15;
+    this.recipeCountLabel.y = 70;
+    this.container.addChild(this.recipeCountLabel);
 
-    this.discoveryLog = new Text({
-      text: '',
-      style: new TextStyle({ fontSize: 12, fill: 0xaaaacc, wordWrap: true, wordWrapWidth: GAME_WIDTH - 30 }),
-    });
-    this.discoveryLog.x = 15;
-    this.discoveryLog.y = 92;
-    this.container.addChild(this.discoveryLog);
+    // Recipe cards container
+    this.recipeContainer = new Container();
+    this.recipeContainer.x = 15;
+    this.recipeContainer.y = 88;
+    this.container.addChild(this.recipeContainer);
 
     // Notification overlay (for slide-in)
     this.notifContainer = new Container();
@@ -121,17 +109,91 @@ export class HUD {
     return { container: pill, valueText: text };
   }
 
-  onNewDiscovery(itemId: string): void {
+  /** Called when a new recipe is discovered */
+  addRecipeCard(recipe: DiscoveredRecipe): void {
+    this.recipeEntries.unshift(recipe);
+    if (this.recipeEntries.length > 3) this.recipeEntries.pop();
+    this.renderRecipeCards();
+    this.recipeCountLabel.text = `발견 레시피 (${this.gameState.discoveredRecipes.length}/${RECIPES.length})`;
+  }
+
+  /** Called when a new item is first discovered */
+  showDiscoveryNotification(itemId: string): void {
     const def = getItemDef(itemId);
     if (!def) return;
-
-    const entry = `${def.emoji} ${def.name} — ${def.scienceFact}`;
-    this.recentDiscoveries.unshift(entry);
-    if (this.recentDiscoveries.length > 3) this.recentDiscoveries.pop();
-    this.discoveryLog.text = this.recentDiscoveries.join('\n');
-
-    // Slide-in notification
     this.showNotification(def.emoji, def.name);
+  }
+
+  // kept for backward compat from main.ts
+  onNewDiscovery(itemId: string): void {
+    this.showDiscoveryNotification(itemId);
+  }
+
+  private renderRecipeCards(): void {
+    for (const card of this.recipeCards) {
+      this.recipeContainer.removeChild(card);
+      card.destroy({ children: true });
+    }
+    this.recipeCards = [];
+
+    for (let i = 0; i < this.recipeEntries.length; i++) {
+      const card = this.createRecipeCard(this.recipeEntries[i], i);
+      this.recipeContainer.addChild(card);
+      this.recipeCards.push(card);
+
+      // Slide-in animation for newest card
+      if (i === 0) {
+        card.alpha = 0;
+        card.x = 20;
+        gsap.to(card, { x: 0, alpha: 1, duration: 0.3, ease: 'power2.out' });
+      }
+    }
+  }
+
+  private createRecipeCard(recipe: DiscoveredRecipe, index: number): Container {
+    const card = new Container();
+    card.y = index * 28;
+
+    const cardW = GAME_WIDTH - 30;
+    const outputDef = getItemDef(recipe.output);
+    const accentColor = outputDef?.color ?? 0x4488ff;
+
+    // Card background
+    const bg = new Graphics();
+    bg.roundRect(0, 0, cardW, 25, 6);
+    bg.fill({ color: 0x12123a, alpha: 0.6 });
+    bg.stroke({ color: accentColor, width: 0.5, alpha: 0.2 });
+    card.addChild(bg);
+
+    // Color accent bar (left)
+    const accent = new Graphics();
+    accent.roundRect(0, 2, 3, 21, 1.5);
+    accent.fill({ color: accentColor, alpha: 0.8 });
+    card.addChild(accent);
+
+    // Recipe flow: emoji + emoji → emoji name
+    const inputEmojis = recipe.inputs.map(id => getItemDef(id)?.emoji ?? '?').join(' + ');
+    const outputEmoji = outputDef?.emoji ?? '?';
+    const outputName = outputDef?.name ?? '???';
+
+    const recipeText = new Text({
+      text: `${inputEmojis}  →  ${outputEmoji} ${outputName}`,
+      style: new TextStyle({ fontSize: 11, fill: 0xddddee }),
+    });
+    recipeText.x = 10;
+    recipeText.y = 1;
+    card.addChild(recipeText);
+
+    // Science note
+    const noteText = new Text({
+      text: recipe.scienceNote,
+      style: new TextStyle({ fontSize: 9, fill: 0x777799 }),
+    });
+    noteText.x = 10;
+    noteText.y = 14;
+    card.addChild(noteText);
+
+    return card;
   }
 
   private showNotification(emoji: string, name: string): void {
@@ -155,15 +217,10 @@ export class HUD {
 
     this.notifContainer.addChild(notif);
 
-    // Slide in from right
     gsap.to(notif, { x: GAME_WIDTH - 192, duration: 0.3, ease: 'power2.out' });
-    // Fade out after 3 seconds
     gsap.to(notif, {
       alpha: 0, duration: 0.4, delay: 3, ease: 'power1.out',
-      onComplete: () => {
-        this.notifContainer.removeChild(notif);
-        notif.destroy({ children: true });
-      },
+      onComplete: () => { this.notifContainer.removeChild(notif); notif.destroy({ children: true }); },
     });
   }
 

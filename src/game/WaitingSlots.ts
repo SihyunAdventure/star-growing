@@ -4,6 +4,7 @@ import { GameState } from './GameState';
 import { Board } from './Board';
 import { getItemDef } from '../data/items';
 import { Panel } from '../ui/Panel';
+import { createItemIcon } from '../ui/ItemRenderer';
 
 const SLOT_COUNT = 3;
 const SLOT_SIZE = 70;
@@ -22,31 +23,21 @@ export class WaitingSlots {
     this.board = board;
     this.container = new Container();
     this.width = SLOT_COUNT * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP;
-
     this.drawSlots();
   }
 
   private drawSlots(): void {
-    // Panel background
     const panelW = this.width + 20;
     const panelH = SLOT_SIZE + 36;
     const panel = new Panel({
-      width: panelW,
-      height: panelH,
-      radius: 14,
-      gradient: true,
-      gradientFrom: 0x1a1a4e,
-      gradientTo: 0x0d0d28,
-      fillAlpha: 0.5,
-      strokeColor: 0x2a2a6e,
-      strokeWidth: 1,
-      strokeAlpha: 0.4,
+      width: panelW, height: panelH, radius: 14,
+      gradient: true, gradientFrom: 0x1a1a4e, gradientTo: 0x0d0d28,
+      fillAlpha: 0.5, strokeColor: 0x2a2a6e, strokeWidth: 1, strokeAlpha: 0.4,
     });
     panel.x = -10;
     panel.y = -26;
     this.container.addChild(panel);
 
-    // Label
     const label = new Text({
       text: '대기 슬롯',
       style: new TextStyle({ fontSize: 12, fill: 0x8888aa }),
@@ -72,7 +63,6 @@ export class WaitingSlots {
       this.container.addChild(slot);
       this.slotContainers.push(slot);
 
-      // Tap to place on board
       bg.eventMode = 'static';
       bg.cursor = 'pointer';
       bg.on('pointertap', () => this.moveToBoard(i));
@@ -84,7 +74,6 @@ export class WaitingSlots {
   addItem(itemId: string): boolean {
     const emptyIndex = this.slots.indexOf(null);
     if (emptyIndex === -1) return false;
-
     this.slots[emptyIndex] = itemId;
     this.renderSlot(emptyIndex);
     return true;
@@ -101,10 +90,8 @@ export class WaitingSlots {
   private moveToBoard(slotIndex: number): void {
     const itemId = this.slots[slotIndex];
     if (!itemId) return;
-
     const boardSlot = this.board.findEmptySlot();
-    if (boardSlot < 0) return; // Board is full
-
+    if (boardSlot < 0) return;
     this.slots[slotIndex] = null;
     this.clearSlot(slotIndex);
     this.board.placeItem(boardSlot, itemId);
@@ -120,49 +107,43 @@ export class WaitingSlots {
 
     const slot = this.slotContainers[index];
 
+    // Wrapper for center-based animation
+    const wrapper = new Container();
+    wrapper.pivot.set(SLOT_SIZE / 2, SLOT_SIZE / 2);
+    wrapper.x = SLOT_SIZE / 2;
+    wrapper.y = SLOT_SIZE / 2;
+    slot.addChild(wrapper);
+
     // Circle bg
     const circle = new Graphics();
     circle.circle(SLOT_SIZE / 2, SLOT_SIZE / 2, SLOT_SIZE / 2 - 6);
     circle.fill({ color: def.color, alpha: 0.2 });
     circle.stroke({ color: def.color, width: 1.5 });
-    slot.addChild(circle);
+    wrapper.addChild(circle);
 
-    // Emoji
-    const emoji = new Text({
-      text: def.emoji,
-      style: new TextStyle({ fontSize: 28 }),
-    });
-    emoji.anchor.set(0.5);
-    emoji.x = SLOT_SIZE / 2;
-    emoji.y = SLOT_SIZE / 2;
-    slot.addChild(emoji);
+    // Custom icon (replaces emoji)
+    const icon = createItemIcon(itemId, SLOT_SIZE * 0.55, def.color);
+    icon.x = SLOT_SIZE / 2;
+    icon.y = SLOT_SIZE / 2;
+    wrapper.addChild(icon);
 
-    // Bounce-in animation
-    gsap.from(slot.scale, { x: 0, y: 0, duration: 0.25, ease: 'back.out(1.7)' });
+    // Bounce-in from center
+    gsap.from(wrapper.scale, { x: 0, y: 0, duration: 0.25, ease: 'back.out(1.7)' });
 
-    // Pulse border effect on occupied slot
+    // Pulse border on occupied slot
     const bg = this.slotBackgrounds[index];
-    if (this.pulseTweens[index]) {
-      this.pulseTweens[index].kill();
-    }
+    if (this.pulseTweens[index]) this.pulseTweens[index]!.kill();
     this.pulseTweens[index] = gsap.to(bg, {
-      alpha: 0.7,
-      duration: 1.2,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut',
+      alpha: 0.7, duration: 1.2, repeat: -1, yoyo: true, ease: 'sine.inOut',
     });
   }
 
   private clearSlot(index: number): void {
     const slot = this.slotContainers[index];
-    while (slot.children.length > 0) {
-      slot.removeChildAt(0);
-    }
-
-    // Stop pulse animation and reset
+    while (slot.children.length > 0) slot.removeChildAt(0);
     if (this.pulseTweens[index]) {
-      this.pulseTweens[index].kill();
+      this.pulseTweens[index]!.kill();
+      this.pulseTweens[index] = null;
     }
     this.slotBackgrounds[index].alpha = 1;
   }

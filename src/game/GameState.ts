@@ -1,8 +1,9 @@
 import { getItemDef, getTierMultiplier } from '../data/items';
 
-export interface PlacedItem {
-  itemId: string;
-  slotIndex: number;
+export interface DiscoveredRecipe {
+  inputs: string[];
+  output: string;
+  scienceNote: string;
 }
 
 export class GameState {
@@ -12,12 +13,16 @@ export class GameState {
   boardItems: (string | null)[] = new Array(16).fill(null); // 4x4
   totalMerges = 0;
 
+  // Recipe tracking
+  discoveredRecipes: DiscoveredRecipe[] = [];
+  private knownRecipeKeys = new Set<string>();
+
   // Event callbacks
   onDiscovery?: (itemId: string) => void;
+  onRecipeDiscovered?: (recipe: DiscoveredRecipe) => void;
   onStardustChange?: () => void;
 
   constructor() {
-    // Tier 0 items are always discovered
     this.discoveredItems.add('dust');
     this.discoveredItems.add('energy');
   }
@@ -25,12 +30,21 @@ export class GameState {
   discoverItem(itemId: string): boolean {
     if (this.discoveredItems.has(itemId)) return false;
     this.discoveredItems.add(itemId);
-    // Award cosmic energy for new discovery
     const def = getItemDef(itemId);
     if (def) {
       this.cosmicEnergy += def.tier * 5 + 10;
     }
     this.onDiscovery?.(itemId);
+    return true;
+  }
+
+  recordRecipe(inputs: string[], output: string, scienceNote: string): boolean {
+    const key = [...inputs].sort().join('+') + '>' + output;
+    if (this.knownRecipeKeys.has(key)) return false;
+    this.knownRecipeKeys.add(key);
+    const recipe: DiscoveredRecipe = { inputs, output, scienceNote };
+    this.discoveredRecipes.push(recipe);
+    this.onRecipeDiscovered?.(recipe);
     return true;
   }
 
@@ -61,8 +75,7 @@ export class GameState {
       if (!itemId) continue;
       const def = getItemDef(itemId);
       if (!def || def.productionRate <= 0) continue;
-      const tierMult = getTierMultiplier(def.tier);
-      totalProduction += def.productionRate * tierMult;
+      totalProduction += def.productionRate * getTierMultiplier(def.tier);
     }
     if (totalProduction > 0) {
       this.stardust += totalProduction * dt;

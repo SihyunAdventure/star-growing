@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle, FillGradient } from 'pixi.js';
 import gsap from 'gsap';
 import { getItemDef } from '../data/items';
 import { hexToRgba } from '../ui/Panel';
+import { createItemIcon } from '../ui/ItemRenderer';
 
 const GAME_WIDTH = 390;
 const GAME_HEIGHT = 844;
@@ -15,7 +16,7 @@ export class DiscoveryEffect {
     overlay.eventMode = 'static';
     parent.addChild(overlay);
 
-    // Dark overlay background
+    // Dark overlay
     const bg = new Graphics();
     bg.rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     bg.fill({ color: 0x000000, alpha: 0.75 });
@@ -31,9 +32,9 @@ export class DiscoveryEffect {
     overlay.addChild(card);
 
     const cardW = 260;
-    const cardH = 220;
+    const cardH = 240;
 
-    // Glow behind card
+    // Glow
     for (let i = 5; i > 0; i--) {
       const pad = i * 8;
       const glow = new Graphics();
@@ -42,12 +43,10 @@ export class DiscoveryEffect {
       card.addChild(glow);
     }
 
-    // Card background
+    // Card bg
     const cardBg = new Graphics();
     const grad = new FillGradient({
-      type: 'linear',
-      start: { x: 0.5, y: 0 },
-      end: { x: 0.5, y: 1 },
+      type: 'linear', start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 },
       colorStops: [
         { offset: 0, color: hexToRgba(0x1a1a5e, 0.95) },
         { offset: 1, color: hexToRgba(0x0d0d35, 0.95) },
@@ -67,11 +66,10 @@ export class DiscoveryEffect {
     label.y = -cardH / 2 + 30;
     card.addChild(label);
 
-    // Large emoji
-    const emoji = new Text({ text: def.emoji, style: new TextStyle({ fontSize: 64 }) });
-    emoji.anchor.set(0.5);
-    emoji.y = -15;
-    card.addChild(emoji);
+    // Custom drawn icon (replaces emoji)
+    const icon = createItemIcon(itemId, 80, def.color);
+    icon.y = -20;
+    card.addChild(icon);
 
     // Item name
     const name = new Text({
@@ -79,7 +77,7 @@ export class DiscoveryEffect {
       style: new TextStyle({ fontSize: 18, fill: 0xffffff, fontWeight: 'bold' }),
     });
     name.anchor.set(0.5);
-    name.y = 40;
+    name.y = 35;
     card.addChild(name);
 
     // Science fact
@@ -90,10 +88,10 @@ export class DiscoveryEffect {
       }),
     });
     fact.anchor.set(0.5);
-    fact.y = 70;
+    fact.y = 65;
     card.addChild(fact);
 
-    // "탭하여 닫기" hint
+    // Hint
     const hint = new Text({
       text: '탭하여 닫기',
       style: new TextStyle({ fontSize: 11, fill: 0x666688 }),
@@ -102,20 +100,15 @@ export class DiscoveryEffect {
     hint.y = cardH / 2 - 20;
     card.addChild(hint);
 
-    // Animate card in
-    gsap.to(card.scale, {
-      x: 1, y: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)', delay: 0.15,
-    });
+    // Animate
+    gsap.to(card.scale, { x: 1, y: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)', delay: 0.15 });
 
-    // Tap to close
+    // Close on tap
     const close = () => {
       gsap.to(card.scale, { x: 0, y: 0, duration: 0.2, ease: 'power2.in' });
       gsap.to(bg, {
         alpha: 0, duration: 0.2,
-        onComplete: () => {
-          parent.removeChild(overlay);
-          overlay.destroy({ children: true });
-        },
+        onComplete: () => { parent.removeChild(overlay); overlay.destroy({ children: true }); },
       });
     };
     bg.eventMode = 'static';
